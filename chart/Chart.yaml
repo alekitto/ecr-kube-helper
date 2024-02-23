@@ -1,0 +1,9 @@
+apiVersion: v2
+name: ecr-kube-helper
+description: A Helm chart for ecr-kube-helper (https://github.com/alekitto/ecr-kube-helper)
+type: application
+version: 0.1.0
+appVersion: latest
+home: https://github.com/alekitto/ecr-kube-helper
+sources:
+- https://github.com/alekitto/ecr-kube-helper

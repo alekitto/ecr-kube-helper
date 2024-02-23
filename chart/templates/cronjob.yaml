@@ -1,0 +1,76 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels: {{ include "ecr-kube-helper.labels" . | indent 4 }}
+  name: {{ template "ecr-kube-helper.fullname" . }}
+spec:
+  schedule: "0 */6 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            checksum/secrets: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
+            {{- if .Values.podAnnotations }}
+{{ toYaml .Values.podAnnotations | indent 12 }}
+            {{- end }}
+          labels:
+            app: {{ template "ecr-kube-helper.name" . }}
+            release: {{.Release.Name }}
+            {{- if .Values.podLabels }}
+{{ toYaml .Values.podLabels | indent 12 }}
+            {{- end }}
+        spec:
+          restartPolicy: OnFailure
+          {{- if .Values.priorityClassName }}
+          priorityClassName: "{{ .Values.priorityClassName }}"
+          {{- end }}
+          containers:
+          - name: {{ .Chart.Name }}
+            image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            args:
+              - 'get-credentials'
+            {{- range .Values.ecr.namespaces }}
+              - '-n'
+              - {{ . }}
+            {{- end }}
+            {{- if .Values.ecr.secretName }}
+              - '-s'
+              - {{ .Values.ecr.secretName | quote }}
+            {{- end }}
+            {{- if .Values.ecr.email }}
+              - '-e'
+              - {{ .Values.ecr.email | quote }}
+            {{- end }}
+            {{- if .Values.ecr.annotations }}
+              - '-a'
+              - {{ .Values.ecr.annotations | toJson | quote }}
+            {{- end }}
+              - {{ .Values.ecr.targetRegistry | quote }}
+            env:
+              - name: AWS_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ template "ecr-kube-helper.secretName" . }}
+                    key: aws.accessKeyId
+              - name: AWS_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ template "ecr-kube-helper.secretName" . }}
+                    key: aws.secretAccessKey
+              - name: AWS_DEFAULT_REGION
+                value: {{ .Values.ecr.awsRegion }}
+            resources:
+{{ toYaml .Values.resources | indent 14 }}
+        {{- if .Values.nodeSelector }}
+          nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 12 }}
+        {{- end }}
+        {{- if .Values.tolerations }}
+          tolerations:
+{{ toYaml .Values.tolerations | indent 12 }}
+        {{- end }}
+          serviceAccountName: {{ template "ecr-kube-helper.serviceAccountName" . }}
